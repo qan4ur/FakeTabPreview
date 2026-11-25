@@ -8,7 +8,6 @@ import org.bukkit.configuration.file.FileConfiguration;
 
 import java.util.ArrayList;
 import java.util.HashSet;
-import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Locale;
 import java.util.Set;
@@ -39,9 +38,7 @@ public record FakeConfig(
         double plainNameChance,
         boolean pingEnabled,
         int pingSampleSize,
-        boolean pingAddToCount,
-        boolean pingAllowAll,
-        Set<String> pingAllowedIps
+        boolean pingAddToCount
 ) {
 
     public enum AssignMode { DEFAULT, WEIGHTED }
@@ -96,10 +93,6 @@ public record FakeConfig(
             }
         }
 
-        List<String> ipsRaw = c.getStringList("ping.allowed-ips");
-        boolean allowAll = ipsRaw.contains("*");
-        Set<String> ips = new LinkedHashSet<>(ipsRaw);
-        ips.remove("*");
 
         int latMin = Math.max(0, c.getInt("entry.latency.min", 20));
         int latMax = Math.max(latMin, c.getInt("entry.latency.max", 120));
@@ -126,9 +119,7 @@ public record FakeConfig(
                 clamp(c.getDouble("names.plain-chance", 0.35), 0, 1),
                 c.getBoolean("ping.enabled", true),
                 Math.max(0, c.getInt("ping.sample-size", 12)),
-                c.getBoolean("ping.add-to-count", false),
-                allowAll,
-                Set.copyOf(ips));
+                c.getBoolean("ping.add-to-count", false));
     }
 
     private static double clamp(double v, double min, double max) {

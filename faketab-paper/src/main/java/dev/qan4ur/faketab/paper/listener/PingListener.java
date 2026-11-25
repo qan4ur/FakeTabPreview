@@ -8,14 +8,12 @@ import org.bukkit.event.EventHandler;
 import org.bukkit.event.EventPriority;
 import org.bukkit.event.Listener;
 
-import java.net.InetAddress;
 import java.util.List;
 import java.util.concurrent.ThreadLocalRandom;
 
 /**
  * Добавляет фейков в player sample (наведение на пинг) и, по флагу, в счётчик онлайна.
  * Событие может приходить не из главного потока — читаются только volatile-снимки.
- * Фейки показываются только адресам из ping.allowed-ips.
  */
 public final class PingListener implements Listener {
 
@@ -28,7 +26,7 @@ public final class PingListener implements Listener {
     @EventHandler(priority = EventPriority.HIGH, ignoreCancelled = true)
     public void onPing(PaperServerListPingEvent event) {
         FakeConfig cfg = service.config();
-        if (cfg == null || !cfg.pingEnabled() || !allowed(cfg, event.getAddress())) {
+        if (cfg == null || !cfg.pingEnabled()) {
             return;
         }
         ListedPlayerInfo[] snap = service.registry().pingSnapshot();
@@ -46,10 +44,5 @@ public final class PingListener implements Listener {
         if (cfg.pingAddToCount()) {
             event.setNumPlayers(event.getNumPlayers() + snap.length);
         }
-    }
-
-    private static boolean allowed(FakeConfig cfg, InetAddress address) {
-        return cfg.pingAllowAll()
-                || (address != null && cfg.pingAllowedIps().contains(address.getHostAddress()));
     }
 }

@@ -15,7 +15,6 @@ import com.velocitypowered.api.scheduler.ScheduledTask;
 import org.slf4j.Logger;
 
 import java.io.IOException;
-import java.net.InetSocketAddress;
 import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.HashSet;
@@ -116,11 +115,6 @@ public final class FakeTabVelocity {
         VelocityConfig c = cfg;
         Snapshot snap = snapshot;
         if (c == null || snap.sample().isEmpty() && snap.fakeCount() == 0) {
-            return;
-        }
-        InetSocketAddress addr = event.getConnection().getRemoteAddress();
-        if (!c.allowAll() && (addr == null || addr.getAddress() == null
-                || !c.allowedIps().contains(addr.getAddress().getHostAddress()))) {
             return;
         }
         ServerPing.Builder b = event.getPing().asBuilder();
