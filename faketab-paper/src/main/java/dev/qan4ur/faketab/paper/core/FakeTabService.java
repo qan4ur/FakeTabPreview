@@ -26,7 +26,8 @@ public final class FakeTabService {
     private final FakeRegistry registry = new FakeRegistry();
     private final PacketSender sender;
 
-    private FakeConfig cfg;
+    // volatile: читается из PingListener, который может работать не в главном потоке.
+    private volatile FakeConfig cfg;
     private GroupService groups;
     private NameGenerator names;
 
