@@ -3,6 +3,7 @@ package dev.qan4ur.faketab.paper;
 import dev.qan4ur.faketab.paper.command.FakeTabCommand;
 import dev.qan4ur.faketab.paper.config.FakeConfig;
 import dev.qan4ur.faketab.paper.core.FakeTabService;
+import dev.qan4ur.faketab.paper.hook.PlaceholderHook;
 import dev.qan4ur.faketab.paper.listener.PingListener;
 import dev.qan4ur.faketab.paper.listener.PlayerListener;
 import org.bukkit.command.PluginCommand;
@@ -13,6 +14,7 @@ import java.util.Objects;
 public final class FakeTabPlugin extends JavaPlugin {
 
     private FakeTabService service;
+    private final PlaceholderHook placeholders = new PlaceholderHook();
 
     @Override
     public void onEnable() {
@@ -25,6 +27,7 @@ public final class FakeTabPlugin extends JavaPlugin {
         PluginCommand faketab = Objects.requireNonNull(getCommand("faketab"), "faketab in plugin.yml");
         faketab.setExecutor(command);
         faketab.setTabCompleter(command);
+        placeholders.register(this, service);
 
         switch (service.config().autoStart()) {
             case PERCENT -> service.setPercent(service.config().defaultPercent());
@@ -35,6 +38,7 @@ public final class FakeTabPlugin extends JavaPlugin {
 
     @Override
     public void onDisable() {
+        placeholders.unregister();
         if (service != null) {
             service.shutdown();
             service = null;

@@ -3,7 +3,7 @@ version: '${version}'
 main: dev.qan4ur.faketab.paper.FakeTabPlugin
 api-version: '1.21'
 description: Фейковые записи в табе и в server-list ping для предпросмотра.
-softdepend: [LuckPerms]
+softdepend: [LuckPerms, PlaceholderAPI]
 commands:
   faketab:
     description: Управление фейк-записями (только консоль).
