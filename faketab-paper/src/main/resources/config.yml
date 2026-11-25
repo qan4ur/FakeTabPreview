@@ -68,44 +68,41 @@ entry:
   # Показывать второй слой скина (шляпу).
   show-hat: true
 
+# +--------------------------------------------------------------------------------+ #
+# | ГРУППЫ (РАНГИ) В ТАБЕ                                                          | #
+# +--------------------------------------------------------------------------------+ #
 groups:
-  # default  — все новые фейки получают группу default-group.
-  # weighted — группа выбирается случайно по весам (weight) из списка ниже.
-  assign-mode: default
-  # Группа для новых фейков в режиме default.
+  # Группа, которую получают все новые фейки.
   default-group: default
-  # Если установлен LuckPerms — брать префикс из одноимённой группы LuckPerms
-  # (например, группа "default"). Нет такой группы в LP — используется format ниже.
+
+  # Редкие случайные группы: с шансом chance новый фейк получает одну из list
+  # (какую именно — по weight из groups.list). 0.08 = примерно каждый 12-й.
+  # list можно писать списком или строкой "silver;platina".
+  random-groups:
+    chance: 0.08
+    list: [silver, platina]
+
+  # Если стоит LuckPerms — брать префикс из одноимённой группы LuckPerms.
+  # Нет такой группы в LP — используется format ниже.
   # Префиксы LP с &-кодами (&7, &#ff8800) понимаются как legacy, иначе как MiniMessage.
   use-luckperms: true
+
   # format — MiniMessage (градиенты, hex), <name> — ник.
-  # weight — вес выбора в режиме weighted (0 — никогда случайно).
-  # order  — порядок в табе: больше — выше (реальные игроки имеют 0).
+  # weight — вес среди random-groups (silver выпадает в 3 раза чаще platina).
+  # order  — порядок в табе: больше — выше. У реальных игроков 0, поэтому отрицательные
+  #          значения ставят фейков ПОСЛЕ всех реальных игроков (и не выше админов при плагине TAB).
   list:
     default:
       format: "<gray><name>"
-      weight: 60
-      order: 0
-    vip:
-      format: "<green>[VIP]</green> <white><name>"
-      weight: 18
-      order: 10
-    premium:
-      format: "<gradient:#00c6ff:#0072ff>[Premium]</gradient> <white><name>"
-      weight: 10
-      order: 20
-    elite:
-      format: "<gradient:#f7971e:#ffd200><bold>[Elite]</bold></gradient> <yellow><name>"
-      weight: 7
-      order: 30
-    legend:
-      format: "<gradient:#ff416c:#ff4b2b><bold>[Legend]</bold></gradient> <#ffb3b3><name>"
-      weight: 4
-      order: 40
-    sponsor:
-      format: "<rainbow>[Sponsor]</rainbow> <gold><name>"
+      order: -30
+    silver:
+      format: "<#c0c0c0>[Silver]</#c0c0c0> <white><name>"
+      weight: 3
+      order: -20
+    platina:
+      format: "<gradient:#e5e4e2:#7fd3ff>[Platina]</gradient> <white><name>"
       weight: 1
-      order: 50
+      order: -10
 
 names:
   # Шанс взять базовый ник без вариаций (если он свободен).

@@ -23,19 +23,23 @@ public final class GroupService {
     private static final LegacyComponentSerializer LEGACY =
             LegacyComponentSerializer.builder().character('&').hexColors().build();
 
-    private final FakeConfig.AssignMode mode;
     private final GroupDef defaultGroup;
-    private final List<GroupDef> weighted;
+    private final double randomChance;
+    /** Редкие группы с весом > 0. */
+    private final List<GroupDef> random;
     private final int totalWeight;
     private final Map<String, String> lpPrefixes;
 
     public GroupService(FakeConfig cfg, Logger log) {
-        this.mode = cfg.assignMode();
-        this.defaultGroup = cfg.groups().stream()
-                .filter(g -> g.name().equals(cfg.defaultGroup())).findFirst().orElseThrow();
-        this.weighted = cfg.groups().stream().filter(g -> g.weight() > 0).toList();
-        this.totalWeight = weighted.stream().mapToInt(GroupDef::weight).sum();
+        this.defaultGroup = find(cfg, cfg.defaultGroup());
+        this.randomChance = cfg.randomGroupChance();
+        this.random = cfg.randomGroups().stream().map(n -> find(cfg, n)).filter(g -> g.weight() > 0).toList();
+        this.totalWeight = random.stream().mapToInt(GroupDef::weight).sum();
         this.lpPrefixes = loadLuckPerms(cfg, log);
+    }
+
+    private static GroupDef find(FakeConfig cfg, String name) {
+        return cfg.groups().stream().filter(g -> g.name().equals(name)).findFirst().orElseThrow();
     }
 
     private static Map<String, String> loadLuckPerms(FakeConfig cfg, Logger log) {
@@ -53,13 +57,17 @@ public final class GroupService {
         }
     }
 
-    /** Группа для новой записи: в режиме default — всегда default-group. */
+    /**
+     * Группа для новой записи: default-group, и только с шансом random-groups.chance —
+     * одна из random-groups (по weight).
+     */
     public GroupDef pickForNew() {
-        if (mode == FakeConfig.AssignMode.DEFAULT || totalWeight <= 0) {
+        ThreadLocalRandom rnd = ThreadLocalRandom.current();
+        if (totalWeight <= 0 || rnd.nextDouble() >= randomChance) {
             return defaultGroup;
         }
-        int r = ThreadLocalRandom.current().nextInt(totalWeight);
-        for (GroupDef g : weighted) {
+        int r = rnd.nextInt(totalWeight);
+        for (GroupDef g : random) {
             r -= g.weight();
             if (r < 0) {
                 return g;

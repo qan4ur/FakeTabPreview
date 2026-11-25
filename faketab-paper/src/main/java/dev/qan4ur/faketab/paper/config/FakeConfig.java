@@ -38,8 +38,9 @@ public record FakeConfig(
         int latencyMax,
         GameMode gameMode,
         boolean showHat,
-        AssignMode assignMode,
         String defaultGroup,
+        double randomGroupChance,
+        List<String> randomGroups,
         boolean useLuckPerms,
         List<GroupDef> groups,
         List<String> baseNames,
@@ -49,8 +50,6 @@ public record FakeConfig(
         boolean pingAddToCount
 ) {
 
-    public enum AssignMode { DEFAULT, WEIGHTED }
-
     /** Что делать сразу после запуска сервера. */
     public enum AutoStart { OFF, PERCENT, SCHEDULE }
 
@@ -59,8 +58,6 @@ public record FakeConfig(
     public static FakeConfig load(FileConfiguration c, Logger log) {
         GameMode gm = parseEnum(GameMode.class, c.getString("entry.gamemode", "SURVIVAL"),
                 GameMode.SURVIVAL, "entry.gamemode", log);
-        AssignMode mode = parseEnum(AssignMode.class, c.getString("groups.assign-mode", "default"),
-                AssignMode.DEFAULT, "groups.assign-mode", log);
         // YAML 1.1 читает незакавыченное off как false — считаем это тем же "off".
         String autoRaw = c.getString("auto-start", "off");
         AutoStart autoStart = autoRaw.equalsIgnoreCase("false")
@@ -78,14 +75,31 @@ public record FakeConfig(
                 groups.add(new GroupDef(
                         key,
                         g.getString("format", "<name>"),
-                        Math.max(0, g.getInt("weight", 0)),
+                        Math.max(0, g.getInt("weight", 1)),
                         g.getInt("order", 0)));
             }
         }
         String defaultGroup = c.getString("groups.default-group", "default");
         if (groups.stream().noneMatch(g -> g.name().equals(defaultGroup))) {
             log.warning("Группа '" + defaultGroup + "' не найдена в groups.list — добавляю её без префикса");
-            groups.add(new GroupDef(defaultGroup, "<white><name>", 1, 0));
+            groups.add(new GroupDef(defaultGroup, "<white><name>", 1, -30));
+        }
+
+        // Редкие случайные группы: список YAML или строка "silver;platina".
+        List<String> randomGroups = new ArrayList<>();
+        List<String> rawRandom = c.isList("groups.random-groups.list")
+                ? c.getStringList("groups.random-groups.list")
+                : List.of(c.getString("groups.random-groups.list", "").split("[;,]"));
+        for (String raw : rawRandom) {
+            String name = raw.trim();
+            if (name.isEmpty() || name.equals(defaultGroup) || randomGroups.contains(name)) {
+                continue;
+            }
+            if (groups.stream().noneMatch(g -> g.name().equals(name))) {
+                log.warning("random-groups: группы '" + name + "' нет в groups.list — добавляю без префикса");
+                groups.add(new GroupDef(name, "<white><name>", 1, -20));
+            }
+            randomGroups.add(name);
         }
 
         Set<String> seen = new HashSet<>();
@@ -117,8 +131,9 @@ public record FakeConfig(
                 latMax,
                 gm,
                 c.getBoolean("entry.show-hat", true),
-                mode,
                 defaultGroup,
+                clamp(c.getDouble("groups.random-groups.chance", 0.08), 0, 1),
+                List.copyOf(randomGroups),
                 c.getBoolean("groups.use-luckperms", true),
                 List.copyOf(groups),
                 List.copyOf(names),

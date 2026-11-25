@@ -5,8 +5,8 @@ package dev.qan4ur.faketab.paper.group;
  *
  * @param name   ключ группы
  * @param format MiniMessage-формат с плейсхолдером {@code <name>}
- * @param weight вес при случайном выборе (режим weighted)
- * @param order  listOrder в табе: больше — выше
+ * @param weight вес среди groups.random-groups
+ * @param order  listOrder в табе: больше — выше; отрицательный — ниже всех реальных игроков
  */
 public record GroupDef(String name, String format, int weight, int order) {
 }
