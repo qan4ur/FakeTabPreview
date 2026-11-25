@@ -1,16 +1,22 @@
 package dev.qan4ur.faketab.paper.command;
 
 import dev.qan4ur.faketab.paper.FakeTabPlugin;
+import dev.qan4ur.faketab.paper.core.FakeEntry;
 import dev.qan4ur.faketab.paper.core.FakeTabService;
 import dev.qan4ur.faketab.paper.core.Schedule;
+import net.kyori.adventure.text.serializer.plain.PlainTextComponentSerializer;
 import org.bukkit.Bukkit;
 import org.bukkit.command.Command;
 import org.bukkit.command.CommandSender;
 import org.bukkit.command.ConsoleCommandSender;
 import org.bukkit.command.TabExecutor;
 
+import java.util.ArrayList;
+import java.util.Comparator;
 import java.util.List;
 import java.util.Locale;
+import java.util.Map;
+import java.util.TreeMap;
 
 /**
  * /faketab — только для консоли сервера ({@link ConsoleCommandSender}).
@@ -19,7 +25,11 @@ import java.util.Locale;
 public final class FakeTabCommand implements TabExecutor {
 
     private static final List<String> SUBS =
-            List.of("on", "off", "fill", "schedule", "set", "add", "remove", "rotate", "speed", "status", "reload");
+            List.of("on", "off", "fill", "schedule", "set", "add", "remove", "rotate", "speed", "status", "list",
+                    "reload");
+
+    private static final int LIST_PAGE = 20;
+    private static final PlainTextComponentSerializer PLAIN = PlainTextComponentSerializer.plainText();
 
     private final FakeTabPlugin plugin;
 
@@ -59,6 +69,7 @@ public final class FakeTabCommand implements TabExecutor {
                             + Bukkit.getMaxPlayers() + " минус " + Bukkit.getOnlinePlayers().size() + " реальных).");
                 }
                 case "schedule" -> schedule(sender, s, args);
+                case "list" -> list(sender, s, args);
                 case "set" -> {
                     s.setFixed(parseCount(arg(args, 1, "set <count>")));
                     sender.sendMessage("FakeTab: цель " + s.target() + ".");
@@ -136,6 +147,38 @@ public final class FakeTabCommand implements TabExecutor {
                 + ". Пересчёт раз в " + sch.checkIntervalSeconds() + " с.");
     }
 
+    /** Сводка по группам и постраничный список фейков — чтобы проверить, что видит таб. */
+    private static void list(CommandSender sender, FakeTabService s, String[] args) {
+        List<FakeEntry> all = s.registry().view();
+        if (all.isEmpty()) {
+            sender.sendMessage("FakeTab: фейков нет.");
+            return;
+        }
+        Map<String, Integer> byGroup = new TreeMap<>();
+        for (FakeEntry e : all) {
+            byGroup.merge(e.group(), 1, Integer::sum);
+        }
+        StringBuilder summary = new StringBuilder("FakeTab: фейков " + all.size() + " —");
+        byGroup.forEach((g, n) -> summary.append(' ').append(g).append(' ').append(n)
+                .append(String.format(Locale.ROOT, " (%.1f%%)", n * 100.0 / all.size())).append(';'));
+        sender.sendMessage(summary.toString());
+
+        List<FakeEntry> sorted = new ArrayList<>(all);
+        sorted.sort(Comparator.comparingInt(FakeEntry::listOrder).reversed()
+                .thenComparing(FakeEntry::name, String.CASE_INSENSITIVE_ORDER));
+        int pages = (sorted.size() + LIST_PAGE - 1) / LIST_PAGE;
+        int page = args.length > 1 ? Math.max(1, Math.min(pages, parseCount(args[1]))) : 1;
+        sender.sendMessage("  страница " + page + "/" + pages + " (в порядке таба):");
+        long now = System.currentTimeMillis();
+        for (FakeEntry e : sorted.subList((page - 1) * LIST_PAGE, Math.min(sorted.size(), page * LIST_PAGE))) {
+            String left = e.leaveAtMillis() > 0
+                    ? ((e.leaveAtMillis() - now) / 60_000 + 1) + " мин"
+                    : "без срока";
+            sender.sendMessage(String.format(Locale.ROOT, "  %-16s %-9s order %4d  ping %3d  выход через %-8s | %s",
+                    e.name(), e.group(), e.listOrder(), e.latency(), left, PLAIN.serialize(e.displayName())));
+        }
+    }
+
     private static void status(CommandSender sender, FakeTabService s) {
         int max = Bukkit.getMaxPlayers();
         int current = s.registry().size();
@@ -157,7 +200,7 @@ public final class FakeTabCommand implements TabExecutor {
 
     private static void usage(CommandSender sender) {
         sender.sendMessage("faketab on | off [instant] | fill <percent> | schedule [preview] | set|add|remove <count> | "
-                + "rotate [now|on|off] | speed <batch> <ticks> | status | reload");
+                + "rotate [now|on|off] | speed <batch> <ticks> | status | list [page] | reload");
     }
 
     private static String arg(String[] args, int i, String usage) {
