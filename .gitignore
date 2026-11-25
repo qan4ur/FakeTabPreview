@@ -1,0 +1,16 @@
+# Maven
+target/
+# Gradle
+build/
+.gradle/
+!gradle/wrapper/gradle-wrapper.jar
+# IntelliJ
+.idea/
+*.iml
+out/
+# VSCode
+.vscode/
+# Secrets / env
+.env
+# Local test server
+run/
