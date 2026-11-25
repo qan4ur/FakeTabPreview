@@ -13,6 +13,8 @@ import java.util.UUID;
  * @param displayName префикс + ник
  * @param listOrder   приоритет в табе (больше — выше)
  * @param latency     пинг в мс
+ * @param leaveAtMillis время «выхода» по connection-period (0 — без ограничения)
  */
-public record FakeEntry(UUID uuid, String name, String group, Component displayName, int listOrder, int latency) {
+public record FakeEntry(UUID uuid, String name, String group, Component displayName, int listOrder, int latency,
+                        long leaveAtMillis) {
 }

@@ -11,7 +11,9 @@ import org.bukkit.scheduler.BukkitTask;
 
 import java.time.ZonedDateTime;
 import java.util.ArrayList;
+import java.util.Comparator;
 import java.util.List;
+import java.util.PriorityQueue;
 import java.util.UUID;
 import java.util.concurrent.ThreadLocalRandom;
 import java.util.logging.Logger;
@@ -25,6 +27,9 @@ public final class FakeTabService {
     private final Plugin plugin;
     private final Logger log;
     private final FakeRegistry registry = new FakeRegistry();
+    /** Очередь выходов по connection-period: ближайший выход — в голове. */
+    private final PriorityQueue<FakeEntry> sessions =
+            new PriorityQueue<>(Comparator.comparingLong(FakeEntry::leaveAtMillis));
     private final PacketSender sender;
 
     // volatile: читается из PingListener, который может работать не в главном потоке.
@@ -206,14 +211,56 @@ public final class FakeTabService {
         spawnTask = Bukkit.getScheduler().runTaskTimer(plugin, this::spawnStep, intervalTicks, intervalTicks);
     }
 
-    /** Один шаг к цели. Если цель достигнута — выходит без аллокаций. */
+    /**
+     * Один шаг: сначала «выходят» фейки с истёкшей сессией (не больше batch-size),
+     * потом движение к цели — каждый из batch-size «слотов» срабатывает с шансом
+     * join-chance / leave-chance, поэтому фейки появляются и уходят неравномерно.
+     * Если делать нечего — выходит без аллокаций.
+     */
     private void spawnStep() {
+        long now = System.currentTimeMillis();
+        List<FakeEntry> leaving = null;
+        while (!sessions.isEmpty() && sessions.peek().leaveAtMillis() <= now
+                && (leaving == null || leaving.size() < batchSize)) {
+            FakeEntry e = sessions.poll();
+            if (registry.contains(e.uuid())) { // удалённые другим путём пропускаем (ленивое удаление)
+                if (leaving == null) {
+                    leaving = new ArrayList<>();
+                }
+                leaving.add(e);
+            }
+        }
+        if (leaving != null) {
+            removeEntries(leaving);
+        }
+
         int diff = target - registry.size();
         if (diff > 0) {
-            addEntries(Math.min(batchSize, diff));
+            int n = trials(Math.min(batchSize, diff), cfg.joinChance());
+            if (n > 0) {
+                addEntries(n);
+            }
         } else if (diff < 0) {
-            removeEntries(registry.pickRandom(Math.min(batchSize, -diff)));
+            int n = trials(Math.min(batchSize, -diff), cfg.leaveChance());
+            if (n > 0) {
+                removeEntries(registry.pickRandom(n));
+            }
         }
+    }
+
+    /** Сколько из k попыток удалось с вероятностью p. */
+    private static int trials(int k, double p) {
+        if (p >= 1) {
+            return k;
+        }
+        ThreadLocalRandom rnd = ThreadLocalRandom.current();
+        int n = 0;
+        for (int i = 0; i < k; i++) {
+            if (rnd.nextDouble() < p) {
+                n++;
+            }
+        }
+        return n;
     }
 
     // ---------------------------------------------------------------- ротация
@@ -267,7 +314,7 @@ public final class FakeTabService {
         List<FakeEntry> fresh = new ArrayList<>(old.size());
         for (int i = 0; i < old.size(); i++) {
             FakeEntry e = createEntry();
-            registry.add(e);
+            register(e);
             fresh.add(e);
         }
         List<UUID> oldIds = new ArrayList<>(old.size());
@@ -289,14 +336,29 @@ public final class FakeTabService {
         GroupDef group = groups.pickForNew();
         ThreadLocalRandom rnd = ThreadLocalRandom.current();
         int latency = rnd.nextInt(cfg.latencyMin(), cfg.latencyMax() + 1);
-        return new FakeEntry(UUID.randomUUID(), name, group.name(), groups.render(group, name), group.order(), latency);
+        long leaveAt = 0;
+        if (cfg.sessionEnabled()) {
+            long minMs = cfg.sessionMinMinutes() * 60_000L;
+            long maxMs = cfg.sessionMaxMinutes() * 60_000L;
+            leaveAt = System.currentTimeMillis() + (maxMs > minMs ? rnd.nextLong(minMs, maxMs + 1) : minMs);
+        }
+        return new FakeEntry(UUID.randomUUID(), name, group.name(), groups.render(group, name), group.order(),
+                latency, leaveAt);
+    }
+
+    /** Добавляет запись в реестр и, если у неё есть срок сессии, — в очередь выходов. */
+    private void register(FakeEntry e) {
+        registry.add(e);
+        if (e.leaveAtMillis() > 0) {
+            sessions.add(e);
+        }
     }
 
     private void addEntries(int count) {
         List<FakeEntry> batch = new ArrayList<>(count);
         for (int i = 0; i < count; i++) {
             FakeEntry e = createEntry();
-            registry.add(e);
+            register(e);
             batch.add(e);
         }
         sender.sendAdd(Bukkit.getOnlinePlayers(), batch);
@@ -341,6 +403,7 @@ public final class FakeTabService {
             rotationTask.cancel();
             rotationTask = null;
         }
+        sessions.clear();
         List<FakeEntry> all = registry.clear();
         List<UUID> ids = new ArrayList<>(all.size());
         for (FakeEntry e : all) {

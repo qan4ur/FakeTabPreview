@@ -29,6 +29,11 @@ public record FakeConfig(
         int batchSize,
         int batchIntervalTicks,
         boolean percentTracksRealPlayers,
+        double joinChance,
+        double leaveChance,
+        boolean sessionEnabled,
+        int sessionMinMinutes,
+        int sessionMaxMinutes,
         Schedule schedule,
         boolean rotationEnabled,
         int rotateIntervalSeconds,
@@ -112,6 +117,9 @@ public record FakeConfig(
             }
         }
 
+        int sessionMin = Math.max(1, c.getInt("connection-period.min-minutes", 5));
+        int sessionMax = Math.max(sessionMin, c.getInt("connection-period.max-minutes", 25));
+
         int latMin = Math.max(0, c.getInt("entry.latency.min", 20));
         int latMax = Math.max(latMin, c.getInt("entry.latency.max", 120));
 
@@ -119,11 +127,16 @@ public record FakeConfig(
                 autoStart,
                 clamp(c.getDouble("default-percent", 50.0), 0, 100_000),
                 Math.max(1, c.getInt("warn-threshold", 500)),
-                Math.max(1, c.getInt("spawn.batch-size", 3)),
+                Math.max(1, c.getInt("spawn.batch-size", 2)),
                 Math.max(1, c.getInt("spawn.batch-interval-ticks", 20)),
                 c.getBoolean("spawn.percent-tracks-real-players", true),
+                clamp(c.getDouble("spawn.join-chance", 0.35), 0.01, 1),
+                clamp(c.getDouble("spawn.leave-chance", 0.35), 0.01, 1),
+                c.getBoolean("connection-period.enabled", true),
+                sessionMin,
+                sessionMax,
                 loadSchedule(c, log),
-                c.getBoolean("rotation.enabled", true),
+                c.getBoolean("rotation.enabled", false),
                 Math.max(1, c.getInt("rotation.interval-seconds", 90)),
                 Math.max(0, c.getInt("rotation.jitter-seconds", 30)),
                 clamp(c.getDouble("rotation.fraction", 0.1), 0, 1),

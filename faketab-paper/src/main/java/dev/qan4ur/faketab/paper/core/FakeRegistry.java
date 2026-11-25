@@ -36,6 +36,10 @@ public final class FakeRegistry {
         return Collections.unmodifiableList(entries);
     }
 
+    public boolean contains(UUID uuid) {
+        return indexByUuid.containsKey(uuid);
+    }
+
     public boolean isNameTaken(String name) {
         return byLowerName.containsKey(name.toLowerCase(Locale.ROOT));
     }
