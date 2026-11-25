@@ -1,0 +1,10 @@
+name: FakeTabPreview
+version: '${version}'
+main: dev.qan4ur.faketab.paper.FakeTabPlugin
+api-version: '1.21'
+description: Фейковые записи в табе и в server-list ping для предпросмотра.
+softdepend: [LuckPerms]
+commands:
+  faketab:
+    description: Управление фейк-записями (только консоль).
+    usage: /faketab <on|off|fill|set|add|remove|rotate|speed|status|reload>
