@@ -1,0 +1,142 @@
+# ============================================================
+#  FakeTabPreview — фейковые записи в табе и в пинге сервера.
+#  Фейки — только записи в табе/пинге: не подключения, не сущности,
+#  в Bukkit.getOnlinePlayers() не попадают.
+# ============================================================
+
+# Сколько процентов от max-players заполнять командой "/faketab on".
+# Реальные игроки вычитаются: цель = max * % - реальные (не меньше 0).
+default-percent: 50.0
+
+# Если цель выше этого числа — предупреждение в консоль (но команда выполняется).
+warn-threshold: 500
+
+spawn:
+  # Сколько фейков добавлять/убирать за один шаг.
+  batch-size: 3
+  # Интервал между шагами в тиках (20 тиков = 1 секунда).
+  batch-interval-ticks: 20
+  # В режимах "on" / "fill" пересчитывать цель при входе/выходе реальных игроков.
+  percent-tracks-real-players: true
+
+rotation:
+  # Периодически заменять часть фейков новыми никами.
+  enabled: true
+  # Базовый интервал между ротациями, секунды.
+  interval-seconds: 90
+  # Случайный разброс ± к интервалу, секунды.
+  jitter-seconds: 30
+  # Какая доля фейков заменяется за раз (0.0–1.0). Минимум 1 запись.
+  fraction: 0.1
+
+entry:
+  # Пинг фейков в мс: случайно в диапазоне [min; max]. Для фиксированного — одинаковые значения.
+  latency:
+    min: 25
+    max: 140
+  # Режим игры в табе: SURVIVAL, CREATIVE, ADVENTURE, SPECTATOR
+  # (SPECTATOR — серый курсив внизу списка).
+  gamemode: SURVIVAL
+  # Показывать второй слой скина (шляпу).
+  show-hat: true
+
+groups:
+  # default  — все новые фейки получают группу default-group.
+  # weighted — группа выбирается случайно по весам (weight) из списка ниже.
+  assign-mode: default
+  # Группа для новых фейков в режиме default.
+  default-group: default
+  # Если установлен LuckPerms — брать префикс из одноимённой группы LuckPerms
+  # (например, группа "default"). Нет такой группы в LP — используется format ниже.
+  # Префиксы LP с &-кодами (&7, &#ff8800) понимаются как legacy, иначе как MiniMessage.
+  use-luckperms: true
+  # format — MiniMessage (градиенты, hex), <name> — ник.
+  # weight — вес выбора в режиме weighted (0 — никогда случайно).
+  # order  — порядок в табе: больше — выше (реальные игроки имеют 0).
+  list:
+    default:
+      format: "<gray><name>"
+      weight: 60
+      order: 0
+    vip:
+      format: "<green>[VIP]</green> <white><name>"
+      weight: 18
+      order: 10
+    premium:
+      format: "<gradient:#00c6ff:#0072ff>[Premium]</gradient> <white><name>"
+      weight: 10
+      order: 20
+    elite:
+      format: "<gradient:#f7971e:#ffd200><bold>[Elite]</bold></gradient> <yellow><name>"
+      weight: 7
+      order: 30
+    legend:
+      format: "<gradient:#ff416c:#ff4b2b><bold>[Legend]</bold></gradient> <#ffb3b3><name>"
+      weight: 4
+      order: 40
+    sponsor:
+      format: "<rainbow>[Sponsor]</rainbow> <gold><name>"
+      weight: 1
+      order: 50
+
+names:
+  # Шанс взять базовый ник без вариаций (если он свободен).
+  plain-chance: 0.35
+  # Пул базовых ников (3–16 символов, A-Z a-z 0-9 _). Из них генерируются вариации
+  # с суффиксами (Steve_42, xSteve x, Steve2011...). Повторов среди активных нет.
+  base:
+    - Steve
+    - Alex
+    - DarkKnight
+    - Pixel
+    - Shadow
+    - Frosty
+    - Creeper
+    - NightOwl
+    - Blaze
+    - Kitsune
+    - Zephyr
+    - Nova
+    - Raven
+    - Lucky
+    - Toxic
+    - Sakura
+    - Ghost
+    - Wolfie
+    - Mango
+    - Vortex
+    - Hunter
+    - Panda
+    - Storm
+    - Neko
+    - Viper
+    - Bandit
+    - Comet
+    - Ember
+    - Kirito
+    - Miner
+    - Crafty
+    - Banana
+    - Rocket
+    - Sniper
+    - Glitch
+    - Senpai
+    - Potato
+    - Phantom
+    - Lime
+    - Ozzy
+
+ping:
+  # Добавлять фейков в player sample (наведение на пинг в списке серверов).
+  enabled: true
+  # Сколько ников показывать в сэмпле всего (вместе с реальными игроками).
+  sample-size: 12
+  # Прибавлять число фейков к онлайну в пинге.
+  add-to-count: false
+  # Кому показывать фейки в пинге. Остальные (в т.ч. мониторинги) видят реальный онлайн.
+  # Укажите свой IP. "*" — показывать всем (не рекомендуется: мониторинги банят за накрутку).
+  # За Velocity: здесь должен быть IP прокси (обычно 127.0.0.1), а фильтр по игрокам —
+  # в конфиге Velocity-плагина.
+  allowed-ips:
+    - "127.0.0.1"
+    - "0:0:0:0:0:0:0:1"
