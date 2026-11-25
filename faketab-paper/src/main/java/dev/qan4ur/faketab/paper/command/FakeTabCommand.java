@@ -2,6 +2,7 @@ package dev.qan4ur.faketab.paper.command;
 
 import dev.qan4ur.faketab.paper.FakeTabPlugin;
 import dev.qan4ur.faketab.paper.core.FakeTabService;
+import dev.qan4ur.faketab.paper.core.Schedule;
 import org.bukkit.Bukkit;
 import org.bukkit.command.Command;
 import org.bukkit.command.CommandSender;
@@ -18,7 +19,7 @@ import java.util.Locale;
 public final class FakeTabCommand implements TabExecutor {
 
     private static final List<String> SUBS =
-            List.of("on", "off", "fill", "set", "add", "remove", "rotate", "speed", "status", "reload");
+            List.of("on", "off", "fill", "schedule", "set", "add", "remove", "rotate", "speed", "status", "reload");
 
     private final FakeTabPlugin plugin;
 
@@ -57,6 +58,7 @@ public final class FakeTabCommand implements TabExecutor {
                     sender.sendMessage("FakeTab: цель " + s.target() + " (" + fmt(pct) + "% от "
                             + Bukkit.getMaxPlayers() + " минус " + Bukkit.getOnlinePlayers().size() + " реальных).");
                 }
+                case "schedule" -> schedule(sender, s, args);
                 case "set" -> {
                     s.setFixed(parseCount(arg(args, 1, "set <count>")));
                     sender.sendMessage("FakeTab: цель " + s.target() + ".");
@@ -111,14 +113,42 @@ public final class FakeTabCommand implements TabExecutor {
         }
     }
 
+    private static void schedule(CommandSender sender, FakeTabService s, String[] args) {
+        Schedule sch = s.config().schedule();
+        if (args.length > 1 && args[1].equalsIgnoreCase("preview")) {
+            int max = Bukkit.getMaxPlayers();
+            sender.sendMessage("FakeTab расписание (" + sch.zone() + ", разброс ±" + fmt(sch.jitterPercent())
+                    + "%), % слотов и фейков при " + max + " слотах без реальных игроков:");
+            for (int h = 0; h < 24; h += 2) {
+                StringBuilder line = new StringBuilder("  ");
+                for (int k = h; k < h + 2; k++) {
+                    double pct = sch.percentAtMinute(k * 60);
+                    line.append(String.format(Locale.ROOT, "%02d:00  %5.1f%%  ~%-5d", k, pct,
+                            (int) Math.floor(max * pct / 100.0)));
+                }
+                sender.sendMessage(line.toString());
+            }
+            return;
+        }
+        s.startSchedule();
+        sender.sendMessage("FakeTab: режим расписания, сейчас " + fmt(s.scheduleBasePercent())
+                + "% слотов по графику (" + sch.zone() + "), цель " + s.target()
+                + ". Пересчёт раз в " + sch.checkIntervalSeconds() + " с.");
+    }
+
     private static void status(CommandSender sender, FakeTabService s) {
         int max = Bukkit.getMaxPlayers();
         int current = s.registry().size();
         int real = Bukkit.getOnlinePlayers().size();
         long next = s.secondsToNextRotation();
+        String mode = switch (s.mode()) {
+            case FIXED -> "фиксированная";
+            case PERCENT -> "режим " + fmt(s.percent()) + "%";
+            case SCHEDULE -> "расписание: " + fmt(s.scheduleBasePercent()) + "% по графику, с разбросом "
+                    + fmt(s.percent()) + "%";
+        };
         sender.sendMessage("FakeTab статус:");
-        sender.sendMessage("  фейков: " + current + " / цель " + s.target()
-                + (s.percent() != null ? " (режим " + fmt(s.percent()) + "%)" : " (фиксированная)"));
+        sender.sendMessage("  фейков: " + current + " / цель " + s.target() + " (" + mode + ")");
         sender.sendMessage("  реальных: " + real + ", слотов: " + max + ", заполнено: "
                 + fmt(max == 0 ? 0 : (current + real) * 100.0 / max) + "%");
         sender.sendMessage("  ротация: " + (s.rotationEnabled() ? "вкл, следующая через " + next + " с" : "выкл"));
@@ -126,7 +156,7 @@ public final class FakeTabCommand implements TabExecutor {
     }
 
     private static void usage(CommandSender sender) {
-        sender.sendMessage("faketab on | off [instant] | fill <percent> | set|add|remove <count> | "
+        sender.sendMessage("faketab on | off [instant] | fill <percent> | schedule [preview] | set|add|remove <count> | "
                 + "rotate [now|on|off] | speed <batch> <ticks> | status | reload");
     }
 
@@ -177,6 +207,7 @@ public final class FakeTabCommand implements TabExecutor {
             return switch (args[0].toLowerCase(Locale.ROOT)) {
                 case "off" -> filter(List.of("instant"), args[1]);
                 case "rotate" -> filter(List.of("now", "on", "off"), args[1]);
+                case "schedule" -> filter(List.of("preview"), args[1]);
                 case "fill" -> filter(List.of("25", "50", "75", "100"), args[1]);
                 case "set", "add", "remove" -> filter(List.of("10", "50", "100"), args[1]);
                 case "speed" -> filter(List.of("1", "3", "5", "10"), args[1]);

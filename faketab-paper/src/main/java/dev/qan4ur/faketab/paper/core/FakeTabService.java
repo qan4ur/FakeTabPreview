@@ -9,6 +9,7 @@ import org.bukkit.entity.Player;
 import org.bukkit.plugin.Plugin;
 import org.bukkit.scheduler.BukkitTask;
 
+import java.time.ZonedDateTime;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.UUID;
@@ -31,15 +32,29 @@ public final class FakeTabService {
     private GroupService groups;
     private NameGenerator names;
 
+    /** Как задаётся цель. */
+    public enum Mode {
+        /** Фиксированное число (set/add/remove/off). */
+        FIXED,
+        /** Процент слотов (on/fill). */
+        PERCENT,
+        /** Процент слотов из суточного расписания. */
+        SCHEDULE
+    }
+
     private int target;
-    /** Не null — цель задана процентом от слотов и пересчитывается. */
-    private Double percent;
+    private Mode mode = Mode.FIXED;
+    /** Текущий процент слотов в режимах PERCENT и SCHEDULE. */
+    private double percent;
+    /** Процент по графику без случайного разброса (для status). */
+    private double scheduleBasePercent;
     private int batchSize;
     private int intervalTicks;
     private boolean rotationEnabled;
 
     private BukkitTask spawnTask;
     private BukkitTask rotationTask;
+    private BukkitTask scheduleTask;
     private long nextRotationAtMillis;
 
     public FakeTabService(Plugin plugin) {
@@ -61,8 +76,10 @@ public final class FakeTabService {
         this.rotationEnabled = newCfg.rotationEnabled();
         restartSpawnTask();
         rescheduleRotation();
-        if (percent != null) {
+        if (mode == Mode.PERCENT) {
             recomputePercentTarget();
+        } else if (mode == Mode.SCHEDULE) {
+            restartScheduleTask();
         }
     }
 
@@ -77,36 +94,79 @@ public final class FakeTabService {
     // ---------------------------------------------------------------- цель
 
     public void setPercent(double pct) {
+        stopSchedule();
+        this.mode = Mode.PERCENT;
         this.percent = pct;
         recomputePercentTarget();
     }
 
     public void setFixed(int count) {
-        this.percent = null;
+        stopSchedule();
+        this.mode = Mode.FIXED;
         setTarget(Math.max(0, count));
     }
 
     public void off(boolean instant) {
-        this.percent = null;
-        setTarget(0);
+        setFixed(0);
         if (instant) {
             removeEntries(registry.view().stream().toList());
         }
+    }
+
+    /** Включает режим расписания: цель сразу пересчитывается и дальше раз в check-interval-seconds. */
+    public void startSchedule() {
+        this.mode = Mode.SCHEDULE;
+        restartScheduleTask();
     }
 
     public int target() {
         return target;
     }
 
-    public Double percent() {
+    public Mode mode() {
+        return mode;
+    }
+
+    /** Текущий процент слотов; в режиме FIXED не имеет смысла. */
+    public double percent() {
         return percent;
     }
 
-    /** Пересчёт цели в процентном режиме при входе/выходе реальных игроков. */
+    public double scheduleBasePercent() {
+        return scheduleBasePercent;
+    }
+
+    /** Пересчёт цели в процентных режимах при входе/выходе реальных игроков. */
     public void onRealPlayersChanged() {
-        if (percent != null && cfg.percentTracksRealPlayers()) {
+        if (mode != Mode.FIXED && cfg.percentTracksRealPlayers()) {
             recomputePercentTarget();
         }
+    }
+
+    // ---------------------------------------------------------------- расписание
+
+    private void restartScheduleTask() {
+        stopSchedule();
+        long period = cfg.schedule().checkIntervalSeconds() * 20L;
+        scheduleTick(); // цель сразу, а не через тик — чтобы команда показала актуальное значение
+        scheduleTask = Bukkit.getScheduler().runTaskTimer(plugin, this::scheduleTick, period, period);
+    }
+
+    private void stopSchedule() {
+        if (scheduleTask != null) {
+            scheduleTask.cancel();
+            scheduleTask = null;
+        }
+    }
+
+    /** Раз в check-interval-seconds: процент по графику ± разброс → новая цель. */
+    private void scheduleTick() {
+        Schedule schedule = cfg.schedule();
+        scheduleBasePercent = schedule.percentAt(ZonedDateTime.now());
+        double jitter = schedule.jitterPercent();
+        double noise = jitter == 0 ? 0 : ThreadLocalRandom.current().nextDouble(-jitter, jitter);
+        percent = Math.max(0, scheduleBasePercent + noise);
+        recomputePercentTarget();
     }
 
     private void recomputePercentTarget() {
@@ -272,6 +332,7 @@ public final class FakeTabService {
     // ---------------------------------------------------------------- выключение
 
     public void shutdown() {
+        stopSchedule();
         if (spawnTask != null) {
             spawnTask.cancel();
             spawnTask = null;

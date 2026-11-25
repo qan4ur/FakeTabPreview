@@ -25,6 +25,12 @@ public final class FakeTabPlugin extends JavaPlugin {
         PluginCommand faketab = Objects.requireNonNull(getCommand("faketab"), "faketab in plugin.yml");
         faketab.setExecutor(command);
         faketab.setTabCompleter(command);
+
+        switch (service.config().autoStart()) {
+            case PERCENT -> service.setPercent(service.config().defaultPercent());
+            case SCHEDULE -> service.startSchedule();
+            case OFF -> { }
+        }
     }
 
     @Override
